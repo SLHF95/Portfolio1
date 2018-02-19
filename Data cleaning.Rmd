@@ -1,0 +1,286 @@
+---
+title: "Data Cleaning"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(readr,groupdata2,ggplot2,tidyverse, lmerTest, caret, jpeg, grid, ggplot2)
+
+#Exercise 1:
+
+# Both experiments are in the same files
+getwd()
+locpath = getwd()
+setwd(locpath)
+
+``` 
+
+
+```{r}
+FixationsV2 = read.csv("FixationsV2.csv")
+
+#Cross-validating
+VSdata = subset(FixationsV2, FixationsV2$Task == "VisualSearch")
+
+VSdata$ParticipantID = as.character(VSdata$ParticipantID)
+VSdata$ParticipantID = as.factor(VSdata$ParticipantID)
+VSdata$foldsID = as.numeric(VSdata$ParticipantID)
+
+folds = createFolds(unique(VSdata$foldsID), k = 3)
+
+
+int_rmse_train = NULL
+int_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(VSdata, !(VSdata$foldsID %in% i))
+  test = subset(VSdata, VSdata$foldsID %in%i)
+
+  newmodel = lmer(Duration ~ 1 + SearchType * Trial + (1 + SearchType * Trial | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  int_rmse_test[n] = Metrics::rmse(newpred, test$Duration)
+  int_rmse_train[n] = Metrics::rmse(train$Duration, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(int_rmse_test)
+mean(int_rmse_train)
+
+
+
+STT_rmse_train = NULL
+STT_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(VSdata, !(VSdata$foldsID %in% i))
+  test = subset(VSdata, VSdata$foldsID %in%i)
+
+  newmodel = lmer(Duration ~ 1 + SearchType + Trial + (1 + SearchType + Trial | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  STT_rmse_test[n] = Metrics::rmse(newpred, test$Duration)
+  STT_rmse_train[n] = Metrics::rmse(train$Duration, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(STT_rmse_test)
+mean(STT_rmse_train)
+
+
+
+ST_rmse_train = NULL
+ST_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(VSdata, !(VSdata$foldsID %in% i))
+  test = subset(VSdata, VSdata$foldsID %in%i)
+
+  newmodel = lmer(Duration ~ 1 + SearchType + (1 + SearchType | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  ST_rmse_test[n] = Metrics::rmse(newpred, test$Duration)
+  ST_rmse_train[n] = Metrics::rmse(train$Duration, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(ST_rmse_test)
+mean(ST_rmse_train)
+
+RMSEs = data.frame(mean(ST_rmse_test), mean(ST_rmse_train), mean(STT_rmse_test), mean(STT_rmse_train), mean(int_rmse_test), mean(int_rmse_train))
+
+```
+
+```{r}
+bestmodel = lmer(Duration ~ 1 + SearchType * Trial + (1 + SearchType * Trial | foldsID), data = VSdata)
+summary(bestmodel)
+
+```
+
+```{r}
+#FixationsV2 data used becuase model failed to converge with SamplesV2 data
+
+#Cross-validating
+SEdata = subset(FixationsV2, FixationsV2$Task == "SocialEngagement")
+
+SEdata$ParticipantID = as.character(SEdata$ParticipantID)
+SEdata$ParticipantID = as.factor(SEdata$ParticipantID)
+SEdata$foldsID = as.numeric(SEdata$ParticipantID)
+
+
+folds = createFolds(unique(SEdata$foldsID), k = 3)
+
+
+pint_rmse_train = NULL
+pint_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(SEdata, !(SEdata$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID")]),] #this is done so NAs are not removed
+  
+  test = subset(SEdata, SEdata$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID")]),]
+
+  newmodel = lmer(PupilSize ~ 1 + Ostension * Directionality + (1 + Ostension * Directionality | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pint_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize)
+  pint_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(pint_rmse_test)
+mean(pint_rmse_train)
+
+
+pOS_rmse_train = NULL
+pOS_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(SEdata, !(SEdata$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID")]),] #this is done so NAs are not removed
+  
+  test = subset(SEdata, SEdata$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID")]),]
+
+  newmodel = lmer(PupilSize ~ 1 + Ostension + Directionality + (1 + Ostension + Directionality | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pOS_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize )
+  pOS_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel) )
+  
+  n = n+1
+}
+
+mean(pOS_rmse_test)
+mean(pOS_rmse_train)
+
+
+pO_rmse_train = NULL
+pO_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(SEdata, !(SEdata$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID")]),] #this is done so NAs are not removed
+  
+  test = subset(SEdata, SEdata$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID")]),]
+
+  newmodel = lmer(PupilSize ~ 1 + Ostension + (1 + Ostension | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pO_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize )
+  pO_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel) )
+  
+  n = n+1
+}
+
+mean(pO_rmse_test)
+mean(pO_rmse_train)
+
+
+pD_rmse_train = NULL
+pD_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(SEdata, !(SEdata$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID")]),] #this is done so NAs are not removed
+  
+  test = subset(SEdata, SEdata$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID")]),]
+  
+  newmodel = lmer(PupilSize ~ 1 + Directionality + (1 + Directionality | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pD_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize )
+  train$Preds=fitted(newmodel)
+  pD_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(pD_rmse_test)
+mean(pD_rmse_train)
+
+
+
+pRMSEs = data.frame(mean(pD_rmse_test), mean(pD_rmse_train), mean(pO_rmse_test), mean(pO_rmse_train), mean(pOS_rmse_test), mean(pOS_rmse_train), mean(pint_rmse_test), mean(pint_rmse_train))
+```
+
+```{r}
+pbestmodel = lmer(PupilSize ~ 1 + Ostension * Directionality + (1 + Ostension * Directionality | foldsID), data = SEdata)
+summary(pbestmodel)
+```
+
+
+```{r}
+# plots for VS
+jet.colors = colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
+
+# background image 
+img = readJPEG(paste(locpath, "/eyetrackingscripts/foraging/ng064ws.jpg", sep = ""))
+g = rasterGrob(img, interpolate = TRUE)
+
+# Scanpaths for count task 
+x = subset(FixationsV2, Task == 'VisualSearch' & ParticipantID=='5_1_m2' & Trial==4)
+x = x[order(x$Fixation),]
+ggplot(x, aes(x=PositionX, y= 1081 - PositionY, label=Fixation)) +
+  annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-0, ymax=1080)  + # adds the picture
+geom_point(size = sqrt(x$Duration), alpha = 0.5, color = "magenta") +
+geom_path(size = 1, alpha = 0.3, color = "yellow") +
+geom_text(aes(label = Fixation, size = 5)) 
+
+
+# Scanpaths for search task (same image)
+x = subset(FixationsV2, Task == 'VisualSearch' & ParticipantID=='4_2_F1' & Trial==4)
+x = x[order(x$Fixation),]
+ggplot(x, aes(x=PositionX, y= 1081 - PositionY, label=Fixation)) +
+  annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-0, ymax=1080)  + # adds the picture
+geom_point(size = sqrt(x$Duration), alpha = 0.5, color = "magenta") +
+geom_path(size = 1, alpha = 0.3, color = "yellow") +
+geom_text(aes(label = Fixation, size = 5))
+
+
+#boxplot
+ggplot(VSdata, aes(SearchType, Duration, fill = SearchType)) + 
+  geom_boxplot() + 
+  scale_y_continuous(limits = quantile(VSdata$Duration, c(0, 0.99))) +
+  theme_minimal()
+```
+
+```{r}
+#plots for SE
+
+#growth plot
+SamplesV2 = read.csv("SamplesV2.csv")
+
+x = subset(SamplesV2, Task == "SocialEngagement") 
+
+ggplot(x, aes(x$TrialTime, x$PupilSize, colour = x$Ostension)) + 
+  geom_smooth() + 
+  facet_grid(. ~ x$Directionality) + #makes you group the data by another variable 
+  theme_minimal() +
+  xlab("Trial Time (ms)") + ylab("Pupil Size (px)") + labs(colour = "Ostension")
+
+```
+
