@@ -113,14 +113,42 @@ summary(bestmodel)
 
 #Cross-validating
 SEdata = subset(FixationsV2, FixationsV2$Task == "SocialEngagement")
+SEdata2 = subset(SamplesV2, SamplesV2$Task == "SocialEngagement")
 
 SEdata$ParticipantID = as.character(SEdata$ParticipantID)
 SEdata$ParticipantID = as.factor(SEdata$ParticipantID)
 SEdata$foldsID = as.numeric(SEdata$ParticipantID)
 
+SEdata2$ParticipantID = as.character(SEdata2$ParticipantID)
+SEdata2$ParticipantID = as.factor(SEdata2$ParticipantID)
+SEdata2$foldsID = as.numeric(SEdata2$ParticipantID)
 
 folds = createFolds(unique(SEdata$foldsID), k = 3)
+folds = createFolds(unique(SEdata2$foldsID), k = 3)
 
+pint_rmse_train = NULL
+pint_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(SEdata2, !(SEdata2$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID", "TrialTime")]),] #this is done so NAs are not removed
+  
+  test = subset(SEdata2, SEdata2$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID", "TrialTime")]),]
+
+  newmodel = lmer(PupilSize ~ 1 + TrialTime + (1 + TrialTime | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pint_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize)
+  pint_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(pint_rmse_test)
+mean(pint_rmse_train)
 
 pint_rmse_train = NULL
 pint_rmse_test = NULL
@@ -230,6 +258,9 @@ pRMSEs = data.frame(mean(pD_rmse_test), mean(pD_rmse_train), mean(pO_rmse_test),
 ```{r}
 pbestmodel = lmer(PupilSize ~ 1 + Ostension * Directionality + (1 + Ostension * Directionality | foldsID), data = SEdata)
 summary(pbestmodel)
+
+pbestmodel2 = lmer(PupilSize ~ 1 + TrialTime + (1 + TrialTime | foldsID), data = SEdata2)
+summary(pbestmodel2)
 ```
 
 
