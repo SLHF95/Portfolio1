@@ -261,6 +261,7 @@ summary(pbestmodel)
 
 pbestmodel2 = lmer(PupilSize ~ 1 + TrialTime + (1 + TrialTime | foldsID), data = SEdata2)
 summary(pbestmodel2)
+
 ```
 
 
